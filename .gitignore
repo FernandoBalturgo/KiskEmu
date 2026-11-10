@@ -46,3 +46,5 @@ editor/**/bin/
 editor/**/obj/
 tools/**/bin/
 tools/**/obj/
+
+CLAUDE.md
