@@ -1,0 +1,90 @@
+# KiskEmu in Docker, reachable only through a ZeroTier network (deploy/docker/README.md).
+#
+#   docker volume create a2core-postgres     # once: the database volume (accounts, characters). See "Your data" below.
+#   cp deploy/docker/env.example .env        # then set ZEROTIER_NETWORK_ID
+#   docker compose up -d --build
+#
+# Networking: the zerotier container owns the network namespace; db, aion and backup share it. The game ports exist only
+# on the ZeroTier interface (and loopback): nothing is published on this machine's LAN or the internet. PostgreSQL
+# listens on 127.0.0.1 inside that namespace, so ZeroTier members cannot reach it either.
+# ZeroTier or Hamachi installed on the host instead: docker-compose.host-vpn.yml (README).
+#
+# Your data: the database lives in the EXTERNAL volume a2core-postgres (the name of the earlier A2Core setup, kept so
+# that volume still works). Compose never creates or removes it, so
+# `docker compose down`, `down -v` and `--force-recreate` leave it alone; only `docker volume rm a2core-postgres` deletes
+# it. Verified backups land in ./backups on this machine (outside Docker) every day and before every migration.
+
+name: a2core
+
+# One image for db, aion and backup. Only db builds it (several services building one tag at once fail with "already
+# exists"); the others use it as built (pull_policy: never: it is local, there is nothing to pull).
+x-image: &image
+  image: a2core-server:local
+  pull_policy: never
+  restart: unless-stopped
+  network_mode: service:zerotier
+  env_file: [.env]
+
+services:
+  zerotier:
+    image: zerotier/zerotier:1.14.2
+    restart: unless-stopped
+    command: ["${ZEROTIER_NETWORK_ID:-}"]   # your network ID, in .env
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    devices: ["/dev/net/tun:/dev/net/tun"]
+    volumes:
+      - zerotier:/var/lib/zerotier-one   # the node identity: the same ZeroTier address after every restart
+
+  db:
+    <<: *image
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    pull_policy: missing   # build when the image is missing; `up --build` rebuilds after an update
+    command: ["db"]
+    depends_on: [zerotier]
+    # Fast shutdown: open transactions roll back, everything committed is on disk.
+    stop_signal: SIGINT
+    stop_grace_period: 2m
+    volumes:
+      - a2core-postgres:/var/lib/aion/postgres
+      - gamedata:/var/lib/aion/data
+      - ./backups:/var/lib/aion/backups
+      - ./data:/import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/aion-db-ready && /usr/lib/postgresql/$${PG_MAJOR}/bin/pg_isready -q -h 127.0.0.1 -p 55432"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      # The first start unpacks the server data and imports the catalogue: give it time.
+      start_period: 30m
+
+  aion:
+    <<: *image
+    command: ["aion"]
+    depends_on:
+      db: { condition: service_healthy }
+    stop_grace_period: 1m
+    volumes:
+      - a2core-postgres:/var/lib/aion/postgres   # read: the database credentials
+      - gamedata:/var/lib/aion/data
+      - state:/var/lib/aion                      # NCGuard state, staff path, launcher downloads, certificate
+      - ./backups:/var/lib/aion/backups          # dashboard backups
+
+  backup:
+    <<: *image
+    command: ["backup"]
+    depends_on:
+      db: { condition: service_healthy }
+    volumes:
+      - a2core-postgres:/var/lib/aion/postgres
+      - ./backups:/var/lib/aion/backups
+
+volumes:
+  a2core-postgres:
+    external: true
+    # AION_PG_VOLUME picks another existing volume (a PostgreSQL upgrade restores into a new one; README).
+    name: ${AION_PG_VOLUME:-a2core-postgres}
+  gamedata:
+  state:
+  zerotier:

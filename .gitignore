@@ -48,3 +48,7 @@ tools/**/bin/
 tools/**/obj/
 
 CLAUDE.md
+
+# Docker setup (deploy/docker): secrets, the server data bundle, backups
+.env
+backups/

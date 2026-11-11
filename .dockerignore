@@ -1,0 +1,19 @@
+# Build context for deploy/docker/Dockerfile: sources only. Server data, backups, secrets and build output stay out.
+.git
+.env
+data/
+backups/
+research/
+third_party/
+_transfer/
+docs/
+tests/
+**/bin/
+**/obj/
+**/node_modules/
+**/__pycache__/
+*.dump
+*.tar.gz
+server/Aion.Host/wwwroot/index.html
+server/Aion.Host/wwwroot/admin.html
+server/Aion.Host/wwwroot/assets/

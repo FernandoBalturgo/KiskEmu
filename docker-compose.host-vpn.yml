@@ -1,0 +1,28 @@
+# KiskEmu: override for a VPN installed on the host instead of the ZeroTier container: ZeroTier One or Hamachi on Windows, macOS or
+# Linux (deploy/docker/README.md, "VPN on the host").
+#
+#   docker compose -f docker-compose.yml -f docker-compose.host-vpn.yml up -d --build
+#
+# The namespace holder becomes a plain container that publishes the game ports on AION_BIND_IP only: your VPN address
+# (ZeroTier 10.x/172.x/192.168.x, Hamachi 25.x). Nothing listens on the LAN or the internet. Set in .env:
+#   AION_BIND_IP=25.12.34.56          the host's VPN address
+#   AION_PUBLIC_ADDRESS=25.12.34.56   the same address: the one the server tells game clients to connect to
+# Needs Docker Compose 2.24 or newer (!reset).
+
+services:
+  zerotier:
+    image: a2core-server:local
+    pull_policy: never   # built by the db service
+    command: ["net"]
+    cap_add: !reset []
+    devices: !reset []
+    volumes: !reset []
+    ports:
+      - "${AION_BIND_IP:?set AION_BIND_IP in .env (the host VPN address)}:443:443"
+      - "${AION_BIND_IP}:3700:3700"
+      - "${AION_BIND_IP}:8087:8087"
+      - "${AION_BIND_IP}:8091:8091"
+      - "${AION_BIND_IP}:8780:8780"
+      - "${AION_BIND_IP}:13328:13328"
+      # Game ports of further worlds started from the staff dashboard (World Management picks 13329 upwards).
+      - "${AION_BIND_IP}:13329-13340:13329-13340"

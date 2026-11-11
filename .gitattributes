@@ -1,2 +1,6 @@
 *.sh text eol=lf
 deploy/linux/** text eol=lf
+
+deploy/docker/** text eol=lf
+docker-compose*.yml text eol=lf
+.dockerignore text eol=lf
