@@ -378,13 +378,17 @@ var staffPort = worldProcess is null ? builder.Configuration.GetValue<int?>("Aio
 if (staffPort is { } chosenStaffPort && (chosenStaffPort == port || chosenStaffPort is < 1 or > 65535))
     throw new InvalidOperationException("Aion:Web:StaffPort must be a free port other than the account port (Aion:LocalPort).");
 var https = builder.Configuration.GetSection(AionConfiguration.Https).Get<HttpsOptions>() ?? new HttpsOptions();
+// AION_LAUNCHER_ALLOW_HTTP=1 serves the account port over plain HTTP (no TLS) for a local server.
+var allowHttp = string.Equals(Environment.GetEnvironmentVariable("AION_LAUNCHER_ALLOW_HTTP"), "1", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(Environment.GetEnvironmentVariable("AION_LAUNCHER_ALLOW_HTTP"), "true", StringComparison.OrdinalIgnoreCase);
+if (allowHttp) https = new HttpsOptions { Proxy = false };
 // A world server's HTTP port (status and control for the auth host, staff tools of this world) is plain HTTP on
 // Aion:WorldProcess:ListenAddress (loopback unless a remote world server is reached over the network).
 if (worldProcess is not null) https = new HttpsOptions { Proxy = true };
-if (!network.LoopbackOnly && https.CertificateFile is null && !https.Proxy)
+if (!allowHttp && !network.LoopbackOnly && https.CertificateFile is null && !https.Proxy)
     throw new InvalidOperationException("A public host needs Aion:Https:CertificateFile and KeyFile for the account port (or Aion:Https:Proxy=true behind a TLS proxy).");
-var accountCertificate = https.CertificateFile is { } certificateFile
-    ? System.Security.Cryptography.X509Certificates.X509Certificate2.CreateFromPemFile(certificateFile, https.KeyFile) : null;
+var accountCertificate = allowHttp ? null : (https.CertificateFile is { } certificateFile
+    ? System.Security.Cryptography.X509Certificates.X509Certificate2.CreateFromPemFile(certificateFile, https.KeyFile) : null);
 // Windows TLS (Schannel) cannot use the ephemeral key of a PEM-loaded certificate; reload it as PKCS#12.
 if (accountCertificate is not null && OperatingSystem.IsWindows())
     accountCertificate = System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadPkcs12(
