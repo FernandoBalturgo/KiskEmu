@@ -17,6 +17,7 @@ public sealed record LauncherConfig(
     [property: JsonPropertyName("bootstrapPort")] int BootstrapPort,
     [property: JsonPropertyName("savedDirSuffix")] string SavedDirSuffix,
     [property: JsonPropertyName("certificateThumbprint")] string? CertificateThumbprint = null,
+    [property: JsonPropertyName("allowHttp"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool AllowHttp = false,
     [property: JsonPropertyName("clientVersions"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ClientVersion[]? ClientVersions = null,
     [property: JsonPropertyName("selectedClientVersion"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SelectedClientVersion = null,
     [property: JsonPropertyName("steamClientPath"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SteamClientPath = null)
@@ -31,6 +32,10 @@ public sealed record LauncherConfig(
         if (config.Name is null || config.AccountUrl is null || config.ServerAddress is null) throw new InvalidDataException("launcher.json needs name, accountUrl and serverAddress");
         if (string.IsNullOrEmpty(config.SavedDirSuffix) && Uri.TryCreate(config.AccountUrl, UriKind.Absolute, out var account))
             config = config with { SavedDirSuffix = ServerSetup.DerivedSuffix(account) };
+        // AION_LAUNCHER_ALLOW_HTTP=1 lets a local server use plain http instead of https.
+        if (config.AllowHttp || string.Equals(Environment.GetEnvironmentVariable("AION_LAUNCHER_ALLOW_HTTP"), "1", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Environment.GetEnvironmentVariable("AION_LAUNCHER_ALLOW_HTTP"), "true", StringComparison.OrdinalIgnoreCase))
+            config = config with { AllowHttp = true };
         config.Validate();
         return config;
     }
@@ -44,8 +49,8 @@ public sealed record LauncherConfig(
     {
         if (!IPAddress.TryParse(ServerAddress, out var address) || address.AddressFamily != AddressFamily.InterNetwork)
             throw new InvalidDataException("serverAddress must be an IPv4 address");
-        if (!Uri.TryCreate(AccountUrl, UriKind.Absolute, out var account) || account.Scheme != Uri.UriSchemeHttps)
-            throw new InvalidDataException("accountUrl must be an https URL");
+        if (!Uri.TryCreate(AccountUrl, UriKind.Absolute, out var account) || (!AllowHttp && account.Scheme != Uri.UriSchemeHttps))
+            throw new InvalidDataException("accountUrl must be an https URL (set AION_LAUNCHER_ALLOW_HTTP=1 for http)");
         if (BootstrapPort is < 1 or > 65535) throw new InvalidDataException("bootstrapPort");
         if (SavedDirSuffix.Length is < 1 or > 32 || !SavedDirSuffix.All(char.IsAsciiLetterOrDigit))
             throw new InvalidDataException("savedDirSuffix must be 1-32 letters or digits");

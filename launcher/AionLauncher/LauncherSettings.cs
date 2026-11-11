@@ -175,8 +175,15 @@ sealed class LauncherSettings
         try
         {
             var settings = File.Exists(FilePath) ? JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(FilePath), Json) ?? new() : new();
+            var allowHttp = string.Equals(Environment.GetEnvironmentVariable("AION_LAUNCHER_ALLOW_HTTP"), "1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Environment.GetEnvironmentVariable("AION_LAUNCHER_ALLOW_HTTP"), "true", StringComparison.OrdinalIgnoreCase);
             // A saved server whose settings no longer pass the checks (edited by hand) is dropped rather than used.
-            settings.Servers.RemoveAll(s => { try { s.Config.Validate(); return false; } catch (Exception e) when (e is InvalidDataException or NullReferenceException) { return true; } });
+            settings.Servers.RemoveAll(s =>
+            {
+                var cfg = allowHttp ? s.Config with { AllowHttp = true } : s.Config;
+                try { cfg.Validate(); return false; }
+                catch (Exception e) when (e is InvalidDataException or NullReferenceException) { return true; }
+            });
             settings.Copies = new Dictionary<string, ClientCopy>(settings.Copies, StringComparer.OrdinalIgnoreCase);
             return settings;
         }

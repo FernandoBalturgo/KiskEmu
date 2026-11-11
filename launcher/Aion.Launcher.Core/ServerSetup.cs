@@ -119,6 +119,7 @@ public static class ServerSetup
         var config = new LauncherConfig(name, accountUrl.GetLeftPart(UriPartial.Authority), reply.ServerAddress, reply.BootstrapPort,
             kept?.SavedDirSuffix ?? (reply.SavedDirSuffix is { Length: > 0 } suffix ? suffix : DerivedSuffix(accountUrl)),
             kept?.CertificateThumbprint ?? pin,
+            kept?.AllowHttp ?? false,
             reply.ClientVersions is { Length: > 0 } versions ? versions : kept?.ClientVersions,
             reply.SelectedClientVersion ?? kept?.SelectedClientVersion,
             kept?.SteamClientPath);
