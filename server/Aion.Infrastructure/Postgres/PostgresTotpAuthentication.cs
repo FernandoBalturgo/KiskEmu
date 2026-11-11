@@ -14,6 +14,7 @@ public sealed partial class PostgresAccountAuthentication : ITotpAuthentication,
     TotpSecretProtection? totpKeys;
     /// <summary>The name authenticator apps show for this server (Aion:Web:SiteName); new enrollments only.</summary>
     public string TotpIssuer { get; set; } = "Aion Local";
+    public bool TotpEnabled { get; set; } = true;
 
     public void ConfigureTotp(string? encryptionKeyBase64)
     {
@@ -24,6 +25,7 @@ public sealed partial class PostgresAccountAuthentication : ITotpAuthentication,
 
     public async Task<TotpStatus?> StatusAsync(Guid accountId, CancellationToken ct)
     {
+        if (!TotpEnabled) return new(false, 0);
         await using var command = source.CreateCommand("""
             SELECT enabled_at, cardinality(recovery_code_hashes)
             FROM auth.account_totp WHERE account_id=$1
@@ -54,6 +56,7 @@ public sealed partial class PostgresAccountAuthentication : ITotpAuthentication,
 
     public async Task<(bool Ok, string[]? RecoveryCodes)> ConfirmEnrollmentAsync(Guid accountId, string code, CancellationToken ct)
     {
+        if (!TotpEnabled) return (false, null);
         await using var connection = await source.OpenConnectionAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         string? secret;
@@ -106,6 +109,7 @@ public sealed partial class PostgresAccountAuthentication : ITotpAuthentication,
 
     public async Task<bool> DisableAsync(Guid accountId, string password, string? code, string? recoveryCode, CancellationToken ct)
     {
+        if (!TotpEnabled) return true;
         if (!await VerifyPasswordAsync(accountId, password, ct)) return false;
         if (!await VerifyForAccountAsync(accountId, code, recoveryCode, ct)) return false;
         await using var command = source.CreateCommand("DELETE FROM auth.account_totp WHERE account_id=$1");
@@ -115,6 +119,7 @@ public sealed partial class PostgresAccountAuthentication : ITotpAuthentication,
 
     public async Task<bool> VerifyForAccountAsync(Guid accountId, string? code, string? recoveryCode, CancellationToken ct)
     {
+        if (!TotpEnabled) return true;
         await using var connection = await source.OpenConnectionAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         string? secret;
@@ -242,6 +247,7 @@ public sealed partial class PostgresAccountAuthentication : ITotpAuthentication,
 
     public async Task<bool> IsEnabledAsync(Guid accountId, CancellationToken ct)
     {
+        if (!TotpEnabled) return false;
         await using var command = source.CreateCommand("SELECT 1 FROM auth.account_totp WHERE account_id=$1");
         command.Parameters.AddWithValue(accountId);
         return await command.ExecuteScalarAsync(ct) is not null;

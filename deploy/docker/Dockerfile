@@ -16,6 +16,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 COPY server/ server/
 COPY tools/data/ tools/data/
+COPY launcher/ launcher/
 COPY --from=web /src/server/Aion.Host/wwwroot/ server/Aion.Host/wwwroot/
 # The pages are already built (AION_SKIP_WEB=1: no Node.js in this stage).
 RUN dotnet publish server/Aion.Host/Aion.Host.csproj -c Release -o /out/host --nologo -p:AION_SKIP_WEB=1

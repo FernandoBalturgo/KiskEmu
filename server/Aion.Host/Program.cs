@@ -97,10 +97,11 @@ if (accountsReady && worldProcess is null)
     builder.Services.AddSingleton<PostgresAccountAuthentication>(provider =>
     {
         var auth = new PostgresAccountAuthentication(authConnectionString!) { TotpIssuer = SiteName(builder.Configuration) };
+        auth.TotpEnabled = builder.Configuration.GetValue("Aion:Totp:Enabled", true);
         var totpKey = builder.Configuration["Aion:Totp:EncryptionKey"];
         if (string.IsNullOrWhiteSpace(totpKey) && builder.Configuration["Aion:BridgeSecret"] is { Length: >= 32 } bridge)
             totpKey = Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(bridge)));
-        if (!string.IsNullOrWhiteSpace(totpKey)) auth.ConfigureTotp(totpKey);
+        if (auth.TotpEnabled && !string.IsNullOrWhiteSpace(totpKey)) auth.ConfigureTotp(totpKey);
         return auth;
     });
     builder.Services.AddSingleton<IAccountAuthentication>(provider => provider.GetRequiredService<PostgresAccountAuthentication>());

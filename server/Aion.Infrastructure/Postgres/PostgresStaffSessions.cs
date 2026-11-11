@@ -32,7 +32,7 @@ public sealed partial class PostgresAccountAuthentication : IStaffSessions
         await using (var connection = await source.OpenConnectionAsync(ct))
             if (!await IsStaffAsync(connection, null, account, ct)) return new(StaffSignInStep.NotStaff);
         var lifetime = remember ? IStaffSessions.RememberedLifetime : IStaffSessions.Lifetime;
-        var enrolled = await IsEnabledAsync(account, ct);
+        var enrolled = TotpEnabled ? await IsEnabledAsync(account, ct) : true;
         var challenge = await BeginChallengeAsync(account, lifetime, enrolled ? ChallengeStaff : ChallengeStaffEnroll,
             enrolled ? CodeChallengeLifetime : EnrollChallengeLifetime, ct);
         return challenge is null ? new(StaffSignInStep.Failed)
