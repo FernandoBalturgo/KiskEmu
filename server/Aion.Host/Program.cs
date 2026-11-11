@@ -211,9 +211,10 @@ if (worldProcess is not null)
         throw new InvalidOperationException("World role needs Aion:Native:GamePort, account logins (not development) and the realm link.");
     native = native with { LoginPort = null };
 }
-// The auth host runs no world: its game port setting is ignored (the world servers' ports are in the world registry).
+// The auth host runs no world of its own: world servers are separate processes. GamePort is only nulled here when it
+// wasn't explicitly configured, so a single-box dev host can serve both login and game on one process.
 var authHost = worldProcess is null && native.LoginPort is not null && !native.Development && accountsReady;
-if (authHost) native = native with { GamePort = null };
+if (authHost && native.GamePort is null) native = native with { GamePort = null };
 if (native.LoginPort is not null || native.GamePort is not null)
 {
     if (!native.Development && !accountsReady)
